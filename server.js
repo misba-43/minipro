@@ -1,83 +1,54 @@
 
-// server.js
 const express = require('express');
-const bodyParser = require('body-parser');
 const { Pool } = require('pg');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// ------------------------
-// 1️⃣ PostgreSQL connection
-// ------------------------
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
+
+// PostgreSQL connection
 const pool = new Pool({
-  connectionString:
-"postgresql://postgres:RxLTABiQZUKZvhFTQXSvzgBjNGrVfGou@hopper.proxy.rlwy.net:35359/railway",
-ssl:{
+  connectionString: "postgresql://postgres:RxLTABiQZUKZvhFTQXSvzgBjNGrVfGou@hopper.proxy.rlwy.net:35359/railway",
+  ssl: {
     rejectUnauthorized: false
   }
 });
 
-// Test connection
+// Test database connection
 pool.connect()
-  .then(() => console.log("Connected to PostgreSQL database!"))
-  .catch(err => console.error("Connection error:", err));
+  .then(() => console.log("Connected to PostgreSQL"))
+  .catch(err => console.error("Connection error", err));
 
-// ------------------------
-// 2️⃣ Create table if it doesn't exist
-// ------------------------
-pool.query(`
-  CREATE TABLE IF NOT EXISTS contact_form (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50),
-    email VARCHAR(50),
-    comment TEXT
-  );
-`, (err) => {
-  if(err) console.error("Table creation error:", err);
-  else console.log("Table ready!");
-});
-
-// ------------------------
-// 3️⃣ Middleware
-// ------------------------
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-// ------------------------
-// 4️⃣ Routes
-// ------------------------
-
-// Serve the portfolio page
+// Home route
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Handle contact form submission
-app.post('/add-user', (req, res) => {
+// Example form route
+app.post('/submit', async (req, res) => {
+  try {
+    const { name, email, message } = req.body;
 
-  const { name, email, comment } = req.body;
+    await pool.query(
+      "INSERT INTO contact_form(name, email, message) VALUES($1,$2,$3)",
+      [name, email, message]
+    );
 
-  const query = "INSERT INTO contact_form (name, email, comment) VALUES ($1, $2, $3)";
-
-  pool.query(query, [name, email, comment], (err) => {
-
-    if(err) {
-      console.error("Error storing data:", err);
-      return res.send("<h1>Error storing data. Try again.</h1><a href='/'>Back</a>");
-    }
-
-    res.send(`<h1>Thank you, ${name}! Your message has been stored.</h1><a href='/'>Back to Home</a>`);
-
-  });
-
+    res.send("Form submitted successfully");
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Database error");
+  }
 });
 
-// ------------------------
-// 5️⃣ Start server
-// ------------------------
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
